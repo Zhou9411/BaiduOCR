@@ -374,8 +374,7 @@ if __name__ == '__main__':
         print(f"选择的文件夹为: {paths}")
 
         # 用户信息 app_id, api_key, secret_key
-        user_info = {'app_id': '35559753', 'api_key': 'sCjEuoG8zCTmaTql2IIPL3Mp',
-                     'secret_key': '31nCisPb8NaUKmZsfFMgZWmzS2ASpzeV'}
+        user_info = {'app_id': '替换为你的app_id', 'api_key': '替换为你的api_key', 'secret_key': '替换为你的secret_key'}
 
         # 开始计时
         start_time = time()
