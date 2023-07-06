@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # python version: 3.11.0
+# System: Windows 11
 
 from concurrent.futures.thread import ThreadPoolExecutor
 from inspect import currentframe
