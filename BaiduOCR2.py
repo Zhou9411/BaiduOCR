@@ -14,8 +14,9 @@ from time import sleep, time
 from urllib.request import urlopen, Request
 
 from aip import AipOcr
-from cv2 import resize, INTER_AREA, error, cvtColor, COLOR_BGR2GRAY, adaptiveThreshold, ADAPTIVE_THRESH_GAUSSIAN_C, \
-    THRESH_BINARY, imencode, IMWRITE_JPEG_QUALITY, imread, imwrite
+from cv2 import resize, INTER_AREA, error, adaptiveThreshold, ADAPTIVE_THRESH_GAUSSIAN_C, \
+    THRESH_BINARY, imencode, IMWRITE_JPEG_QUALITY, imread, imwrite, IMREAD_GRAYSCALE, bilateralFilter, \
+    getStructuringElement, MORPH_ELLIPSE, dilate, MORPH_OPEN, morphologyEx
 
 
 # 百度OCR类
@@ -31,6 +32,7 @@ class BaiduOCR:
         self.mix_px = 15  # Baidu限制最小图像像素:15
         self.ocr_max_threads = 1  # BaiduOCR付费用户好像限制最大线程数:10;免费用户好像最大2线程,避免不必要的麻烦,默认为1
         self.image_max_threads = 16  # 设置图片预处理线程,自行根据设备性能设置,默认16
+        self.is_blueprint = False  # 输入是否为蓝图
 
     # 记录错误日志
     def log(self, message):
@@ -93,6 +95,10 @@ class BaiduOCR:
     def set_threads(self, ocr_max_threads=1, image_max_threads=16):
         self.image_max_threads = image_max_threads
         self.ocr_max_threads = ocr_max_threads
+
+    # 设置是否识别蓝图
+    def set_blueprint(self, is_blueprint=False):
+        self.is_blueprint = is_blueprint
 
     # 获取图像文件
     def get_files(self):
@@ -166,23 +172,38 @@ class BaiduOCR:
 
         return image
 
-    # 处理图像文件颜色
-    @staticmethod
-    def process_color(image):
+    # 滤波降噪
+    def process_filter(self, image):
+        # 应用双边滤波 bilateralFilter()
         try:
-            # 转换为灰度图像
-            image = cvtColor(image, COLOR_BGR2GRAY)
+            # 创建核处理器
+            kernel = getStructuringElement(MORPH_ELLIPSE, (5, 5))
+            if self.is_blueprint:
+                # 应用双边滤波
+                image = bilateralFilter(image, 9, 55, 55)
+                # 膨胀图像
+                image = dilate(image, kernel, iterations=1)
+            else:
+                # 应用双边滤波
+                image = bilateralFilter(image, 9, 55, 55)
+                # 开运算
+                image = morphologyEx(image, MORPH_OPEN, kernel)
         except error as e:
-            print(f"转换灰度图像失败: {e}")
+            print(f"滤波降噪失败: {e}")
             return False
+        return image
 
+    # 处理图像文件颜色
+    def process_color(self, image):
         try:
             # 转换为二值图像
-            image = adaptiveThreshold(image, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 2)
+            if self.is_blueprint:
+                image = adaptiveThreshold(image, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 15, 21)
+            else:
+                image = adaptiveThreshold(image, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 11, 5)
         except error as e:
             print(f"转换二值图像失败: {e}")
             return False
-
         return image
 
     # 处理图像文件大小限制
@@ -206,10 +227,13 @@ class BaiduOCR:
     # 处理图像文件
     def process_image(self, file):
         try:
-            image = imread(file)
+            image = imread(file, IMREAD_GRAYSCALE)
             size = self.get_pixel_size(image)
             if isinstance(size, bool):
                 raise Exception(f"图像尺寸获取失败: {file}")
+            image = self.process_filter(image)
+            if isinstance(image, bool):
+                raise Exception(f"图像滤波降噪失败: {file}")
             image = self.process_pixel(image, size)
             if isinstance(image, bool):
                 raise Exception(f"图像尺寸处理失败: {file}")
@@ -393,6 +417,8 @@ if __name__ == '__main__':
         # baidu_ocr.set_px_limit(4096, 15)  # Baidu 默认限制为Max_px = 4096, Min_px = 15
         # 设置多线程
         # baidu_ocr.set_threads(image_max_threads=16, ocr_max_threads=1)  # 默认图片处理为16, ocr处理为1
+        # 设置图片处理模式
+        # baidu_ocr.set_blueprint(True)  # 默认关闭蓝图处理参数(或其它任意底色)表格文件处理参数
         # 开始处理
         baidu_ocr.process_thread()
         # 结束计时
